@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zähler einblinken – optische Schnittstelle</title>
+<style>
+:root{
+  --graphit:#14181c;
+  --panel:#1e242a;
+  --panel-2:#262e36;
+  --linie:#333d47;
+  --lcd:#b3bcaa;
+  --lcd-seg:#161a14;
+  --lcd-off:rgba(22,26,20,.09);
+  --licht:#f4f2e8;
+  --messing:#c9a227;
+  --text:#dfe4e6;
+  --muted:#7f8b93;
+  --alarm:#d2603a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--graphit);
+  color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  padding:0 0 env(safe-area-inset-bottom);
+}
+.wrap{max-width:560px;margin:0 auto;padding:20px 18px 60px}
+
+/* ---- Kopf ---- */
+.eyebrow{
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--messing);margin:0 0 6px;
+}
+h1{
+  font-size:26px;line-height:1.15;font-weight:650;letter-spacing:-.015em;
+  margin:0 0 8px;
+}
+.lede{color:var(--muted);font-size:14px;margin:0 0 22px}
+
+/* ---- LCD-Nachbau: das Signature-Element ---- */
+.lcd{
+  background:var(--lcd);
+  border-radius:3px;
+  padding:14px 12px 10px;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.35), 0 1px 0 #47525c;
+  margin-bottom:2px;
+}
+.lcd-row{display:flex;justify-content:flex-end;gap:6px;align-items:flex-end}
+.lcd-caption{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-family:ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;color:rgba(22,26,20,.5);margin-top:8px
+}
+.lcd-caption .info{opacity:.25}
+.lcd-caption .info.on{opacity:1;font-weight:700}
+.dig{position:relative;width:26px;height:44px}
+.dig.small{width:18px;height:30px}
+.seg{position:absolute;background:var(--lcd-off);transition:background .06s linear}
+.seg.on{background:var(--lcd-seg)}
+.dig .a{left:5px;right:5px;top:0;height:4px}
+.dig .g{left:5px;right:5px;top:20px;height:4px}
+.dig .d{left:5px;right:5px;bottom:0;height:4px}
+.dig .f{left:0;top:4px;width:4px;height:16px}
+.dig .b{right:0;top:4px;width:4px;height:16px}
+.dig .e{left:0;top:24px;width:4px;height:16px}
+.dig .c{right:0;top:24px;width:4px;height:16px}
+.dig.small .g{top:13px;height:3px}
+.dig.small .a,.dig.small .d{height:3px;left:4px;right:4px}
+.dig.small .f{top:3px;height:10px;width:3px}
+.dig.small .b{top:3px;height:10px;width:3px}
+.dig.small .e{top:16px;height:11px;width:3px}
+.dig.small .c{top:16px;height:11px;width:3px}
+
+.lcd-label{
+  font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.1em;
+  color:var(--muted);text-align:right;margin:0 0 20px;
+}
+
+/* ---- Karten ---- */
+.card{
+  background:var(--panel);border:1px solid var(--linie);border-radius:10px;
+  padding:16px;margin-bottom:14px;
+}
+.card h2{
+  font-family:ui-monospace,Menlo,monospace;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 14px;font-weight:600;
+}
+label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+select,input[type=text],input[type=number]{
+  width:100%;background:var(--panel-2);color:var(--text);
+  border:1px solid var(--linie);border-radius:7px;padding:11px 12px;
+  font-size:16px;font-family:inherit;
+}
+input[type=text].pin{
+  font-family:ui-monospace,Menlo,monospace;letter-spacing:.6em;text-align:center;font-size:22px
+}
+.field{margin-bottom:16px}
+.field:last-child{margin-bottom:0}
+.check{
+  display:flex;gap:12px;align-items:flex-start;padding:11px 0;
+  border-top:1px solid var(--linie);cursor:pointer
+}
+.check:first-of-type{border-top:none}
+.check input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--messing);flex:none}
+.check .txt{font-size:14px;color:var(--text)}
+.check .txt small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+button{
+  font-family:inherit;font-size:15px;font-weight:600;border-radius:8px;
+  border:1px solid var(--linie);background:var(--panel-2);color:var(--text);
+  padding:13px 16px;cursor:pointer;width:100%;
+}
+button:focus-visible{outline:2px solid var(--messing);outline-offset:2px}
+button.primary{background:var(--messing);color:#14181c;border-color:var(--messing)}
+button.ghost{background:transparent}
+button[disabled]{opacity:.4;cursor:not-allowed}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+
+details{border-top:1px solid var(--linie);margin-top:14px;padding-top:12px}
+summary{font-size:13px;color:var(--muted);cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+ ";color:var(--messing)}
+details[open] summary::before{content:"– "}
+details .inner{padding-top:14px}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+.warn{
+  font-size:12.5px;color:var(--alarm);border-left:2px solid var(--alarm);
+  padding-left:10px;margin:12px 0 0
+}
+
+/* ---- Ablauf ---- */
+#run{display:none}
+.step{
+  display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--linie);
+  font-size:14px;color:var(--muted);opacity:.45
+}
+.step:first-child{border-top:none}
+.step.now{opacity:1;color:var(--text)}
+.step.done{opacity:.6}
+.step .n{
+  font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--messing);
+  padding-top:3px;flex:none;width:26px
+}
+.step.done .n::after{content:" ✓"}
+.big{font-size:19px;font-weight:600;margin:0 0 4px}
+.sub{font-size:14px;color:var(--muted);margin:0}
+.count{font-family:ui-monospace,Menlo,monospace;font-size:44px;text-align:center;color:var(--licht);margin:8px 0}
+
+/* ---- Blitzfläche ---- */
+#flash{
+  position:fixed;inset:0;background:#fff;display:none;z-index:99;
+}
+#flash.on{display:block}
+
+/* ---- Ablaufplan-Ausgabe ---- */
+pre.plan{
+  background:var(--panel-2);border:1px solid var(--linie);border-radius:8px;
+  padding:14px;overflow-x:auto;font-family:ui-monospace,Menlo,monospace;
+  font-size:12.5px;line-height:1.7;color:var(--text);white-space:pre-wrap
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<video id="cam" playsinline muted style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px"></video>
+
+<div class="wrap">
+  <p class="eyebrow">Optische Schnittstelle · Lichtimpulse</p>
+  <h1>Zähler einblinken</h1>
+  <p class="lede">PIN und Menüschritte als Blinkfolge — statt von Hand mit der Taschenlampe.</p>
+
+  <div class="lcd">
+    <div class="lcd-row" id="lcdTop"></div>
+    <div class="lcd-row" id="lcdBot" style="margin-top:10px"></div>
+    <div class="lcd-caption">
+      <span>L1 L2 L3</span>
+      <span class="info" id="lcdInfo">INFO</span>
+    </div>
+  </div>
+  <p class="lcd-label" id="lcdLabel">so sollte der Zähler jetzt aussehen</p>
+
+  <!-- ============ EINRICHTUNG ============ -->
+  <div id="setup">
+
+    <div class="card">
+      <h2>Zähler</h2>
+      <div class="field">
+        <label for="model">Modell</label>
+        <select id="model">
+          <option value="e220">Landis+Gyr E220 (AMxD)</option>
+          <option value="e220">Landis+Gyr E230 / E320 (gleiche Menüführung)</option>
+          <option value="generic">Anderes Modell — nur PIN eingeben</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pin">PIN vom Messstellenbetreiber</label>
+        <input type="text" class="pin" id="pin" inputmode="numeric" maxlength="4" placeholder="0000" value="">
+      </div>
+    </div>
+
+    <div class="card" id="tasksCard">
+      <h2>Was eingestellt werden soll</h2>
+      <label class="check">
+        <input type="checkbox" id="tInf" checked>
+        <span class="txt">Erweiterten Datensatz einschalten <em>(InF → on)</em>
+          <small>Der Zähler schiebt dann auch 1-0:16.7.0 (Momentanleistung) auf die IR-Schnittstelle. Ohne das sieht der Lesekopf nur Zählerstände.</small></span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="tPin" checked>
+        <span class="txt">PIN-Abfrage abschalten <em>(PIn → oFF)</em>
+          <small>Momentanleistung bleibt dauerhaft sichtbar, kein erneutes Einblinken nach Stromausfall.</small></span>
+      </label>
+      <p class="warn">Direkt vor <strong>InF</strong> liegt <strong>HIS</strong>. Ein langer Impuls an dieser Stelle löscht die historischen Verbrauchswerte. Der Ablauf hält deshalb vor jedem Umschalten an und fragt, was auf dem Display steht.</p>
+    </div>
+
+    <div class="card">
+      <h2>Lichtquelle</h2>
+      <div class="field">
+        <select id="source">
+          <option value="screen">Bildschirm — Handy mit dem Display auf den Sensor legen</option>
+          <option value="torch">Kamera-Blitz — Linse auf den Sensor</option>
+          <option value="plan">Nur Ablaufplan — ich blinke selbst mit der Taschenlampe</option>
+        </select>
+      </div>
+      <p class="hint" id="srcHint">Display-Helligkeit vorher auf Maximum. Weiß auf einem OLED-Display liefert am Sensor deutlich mehr als die geforderten 400 Lux, solange es direkt aufliegt.</p>
+
+      <button class="ghost" id="diagBtn" style="margin-top:14px">Blitz testen</button>
+      <pre class="plan" id="diag" style="display:none;margin-top:12px"></pre>
+
+      <details>
+        <summary>Zeiten anpassen</summary>
+        <div class="inner">
+          <div class="grid2">
+            <div class="field">
+              <label for="tShort">Kurzer Impuls (ms)</label>
+              <input type="number" id="tShort" value="300" min="80" max="1900" step="20">
+            </div>
+            <div class="field">
+              <label for="tGap">Pause zwischen Impulsen (ms)</label>
+              <input type="number" id="tGap" value="450" min="150" max="2500" step="50">
+            </div>
+            <div class="field">
+              <label for="tDigit">Ziffernpause (ms)</label>
+              <input type="number" id="tDigit" value="3300" min="2500" max="6000" step="100">
+            </div>
+            <div class="field">
+              <label for="tLong">Langer Impuls (ms)</label>
+              <input type="number" id="tLong" value="6500" min="5100" max="12000" step="250">
+            </div>
+            <div class="field">
+              <label for="tMenu">Menüschritt-Pause (ms)</label>
+              <input type="number" id="tMenu" value="1500" min="600" max="4000" step="100">
+            </div>
+            <div class="field">
+              <label for="tLead">Vorlauf (s)</label>
+              <input type="number" id="tLead" value="5" min="0" max="20" step="1">
+            </div>
+          </div>
+          <p class="hint">Laut Handbuch gilt: kurzer Impuls unter 2 s, langer Impuls über 5 s, Ziffer wird nach ~3 s ohne Impuls übernommen, nach 120 s Untätigkeit fällt der Zähler zurück.</p>
+        </div>
+      </details>
+
+      <label class="check" style="margin-top:14px;border-top:1px solid var(--linie)">
+        <input type="checkbox" id="speak" checked>
+        <span class="txt">Ansagen und Signaltöne
+          <small>Weil du das Display nicht sehen kannst, während es auf dem Sensor liegt.</small></span>
+      </label>
+    </div>
+
+    <button class="primary" id="start">Ablauf starten</button>
+    <p class="hint" style="text-align:center">Abbrechen geht jederzeit — der Zähler fällt nach 120 s ohne Impuls von selbst zurück, ohne etwas zu ändern.</p>
+  </div>
+
+  <!-- ============ ABLAUF ============ -->
+  <div id="run">
+    <div class="card">
+      <p class="big" id="runTitle">Bereit</p>
+      <p class="sub" id="runSub"></p>
+      <div class="count" id="runCount" style="display:none">5</div>
+      <div id="confirmBox" style="display:none">
+        <div class="btnrow" id="confirmBtns"></div>
+      </div>
+      <div class="btnrow" id="runBtns">
+        <button class="ghost" id="abort">Abbrechen</button>
+        <button class="ghost" id="pauseBtn">Pause</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Schritte</h2>
+      <div id="steps"></div>
+    </div>
+  </div>
+
+  <div id="planOut"></div>
+</div>
+
+<script>
+/* ---------------- 7-Segment-Anzeige ---------------- */
+const SEG = {
+  '0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg','5':'acdfg',
+  '6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg',
+  'A':'abcefg','b':'cdefg','C':'adef','c':'deg','d':'bcdeg','E':'adefg',
+  'F':'aefg','H':'bcefg','h':'cefg','I':'bc','J':'bcd','L':'def','n':'ceg',
+  'o':'cdeg','O':'abcdef','P':'abefg','r':'eg','S':'acdfg','t':'defg',
+  'U':'bcdef','u':'cde','y':'bcdfg','-':'g',' ':''
+};
+function buildDigits(host, count, small){
+  host.innerHTML='';
+  for(let i=0;i<count;i++){
+    const d=document.createElement('div');
+    d.className='dig'+(small?' small':'');
+    'abcdefg'.split('').forEach(s=>{
+      const e=document.createElement('div'); e.className='seg '+s; d.appendChild(e);
+    });
+    host.appendChild(d);
+  }
+}
+function show(host,txt,count){
+  const chars=String(txt).padStart(count,' ').slice(-count).split('');
+  [...host.children].forEach((dig,i)=>{
+    const on=SEG[chars[i]]!==undefined?SEG[chars[i]]:'';
+    [...dig.children].forEach(seg=>{
+      const name=seg.className.replace('seg ','').replace(' on','');
+      seg.classList.toggle('on', on.includes(name));
+    });
+  });
+}
+const lcdTop=document.getElementById('lcdTop'), lcdBot=document.getElementById('lcdBot');
+buildDigits(lcdTop,6,false); buildDigits(lcdBot,6,true);
+function setLcd(top,bot,label,info){
+  show(lcdTop,top,6); show(lcdBot,bot,6);
+  document.getElementById('lcdLabel').textContent=label||'';
+  document.getElementById('lcdInfo').classList.toggle('on',!!info);
+}
+setLcd('1 8 0','','so sollte der Zähler jetzt aussehen',true);
+
+/* ---------------- Zustand ---------------- */
+const $=id=>document.getElementById(id);
+let aborted=false, paused=false, torchTrack=null, wakeLock=null;
+
+const cfg=()=>({
+  model:$('model').value,
+  pin:$('pin').value.trim(),
+  inf:$('tInf').checked,
+  pinOff:$('tPin').checked,
+  src:$('source').value,
+  short:+$('tShort').value, gap:+$('tGap').value, digit:+$('tDigit').value,
+  long:+$('tLong').value, menu:+$('tMenu').value, lead:+$('tLead').value,
+  speak:$('speak').checked
+});
+
+/* ---------------- Ton & Sprache ---------------- */
+let ac=null;
+function beep(freq=880,ms=120){
+  if(!cfg().speak) return;
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.frequency.value=freq; o.type='sine'; o.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(.0001,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.25,ac.currentTime+.01);
+    g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+ms/1000);
+    o.start(); o.stop(ac.currentTime+ms/1000+.02);
+  }catch(e){}
+}
+function say(t){
+  if(!cfg().speak||!window.speechSynthesis) return;
+  try{
+    const u=new SpeechSynthesisUtterance(t); u.lang='de-DE'; u.rate=1.05;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ---------------- Licht ---------------- */
+const flashEl=$('flash'), camEl=$('cam');
+let torchStream=null;
+
+function hasTorch(track){
+  try{ const c=track.getCapabilities?track.getCapabilities():{}; return 'torch' in c; }
+  catch(e){ return false; }
+}
+function stopStream(s){ if(s) s.getTracks().forEach(t=>{try{t.stop()}catch(e){}}); }
+async function attach(s){
+  camEl.srcObject=s;
+  try{ await camEl.play(); }catch(e){}
+  await sleep(250);
+}
+function contextProblem(){
+  if(!window.isSecureContext)
+    return 'Kein sicherer Kontext — die Seite läuft über "'+location.protocol+'". '+
+           'Chrome gibt die Kamera nur über https:// oder http://localhost frei und fragt deshalb gar nicht erst nach.';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)
+    return 'navigator.mediaDevices fehlt — die Kamera-API steht in diesem Kontext nicht zur Verfügung.';
+  return null;
+}
+async function torchOn(state){
+  if(!torchTrack) return false;
+  try{ await torchTrack.applyConstraints({advanced:[{torch:state}]}); return true; }
+  catch(e){ return false; }
+}
+async function initTorch(){
+  const problem=contextProblem();
+  if(problem){ torchTrack=null; throw new Error(problem); }
+  let s=null;
+  try{
+    s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+  }catch(e){
+    throw new Error('Kamerazugriff abgelehnt oder nicht möglich: '+(e.name||'')+' '+(e.message||''));
+  }
+  await attach(s);
+  let t=s.getVideoTracks()[0];
+  if(hasTorch(t)){ torchStream=s; torchTrack=t; return true; }
+
+  // Die Rückkamera meldet keinen Blitz — alle weiteren Kameras durchgehen.
+  const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+  for(const d of devs){
+    stopStream(s);
+    try{
+      s=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:d.deviceId}}});
+      await attach(s);
+      t=s.getVideoTracks()[0];
+      if(hasTorch(t)){ torchStream=s; torchTrack=t; return true; }
+    }catch(e){}
+  }
+  stopStream(s); torchTrack=null;
+  throw new Error('Zugriff steht, aber keine der '+devs.length+' Kameras meldet eine torch-Fähigkeit. Nimm den Bildschirm.');
+}
+async function runDiagnose(){
+  const out=$('diag'); out.style.display='block';
+  const L=[];
+  L.push('Herkunft        '+location.protocol+'//'+(location.host||'(leer)'));
+  L.push('Sicherer Kontext '+(window.isSecureContext?'ja':'NEIN  ← hier scheitert es'));
+  L.push('mediaDevices     '+(navigator.mediaDevices?'vorhanden':'FEHLT'));
+  L.push('im iframe        '+(window.top!==window.self?'ja':'nein'));
+  out.textContent=L.join('\n')+'\n\nprüfe Kameras …';
+  const problem=contextProblem();
+  if(problem){ out.textContent=L.join('\n')+'\n\n'+problem; return; }
+  try{
+    await initTorch();
+    const c=torchTrack.getCapabilities();
+    L.push('Kamera           '+(torchTrack.label||'ohne Namen'));
+    L.push('torch            unterstützt');
+    out.textContent=L.join('\n')+'\n\nTestblitz für 2 Sekunden …';
+    await torchOn(true); await sleep(2000); await torchOn(false);
+    out.textContent=L.join('\n')+'\n\nBlitz hat funktioniert. Du kannst starten.';
+  }catch(e){
+    out.textContent=L.join('\n')+'\n\n'+e.message;
+  }finally{
+    if(!torchTrack){ stopStream(torchStream); torchStream=null; }
+  }
+}
+async function lightOn(){ if(torchTrack){ if(await torchOn(true)) return; } flashEl.classList.add('on'); }
+async function lightOff(){ if(torchTrack){ await torchOn(false); } flashEl.classList.remove('on'); }
+
+/* ---------------- Ablaufsteuerung ---------------- */
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function gate(){
+  while(paused && !aborted) await sleep(120);
+  if(aborted) throw new Error('abgebrochen');
+}
+async function pulse(ms){
+  await gate(); await lightOn(); await sleep(ms); await lightOff();
+}
+
+let stepEls=[];
+function renderSteps(list){
+  const host=$('steps'); host.innerHTML=''; stepEls=[];
+  list.forEach((s,i)=>{
+    const d=document.createElement('div'); d.className='step';
+    d.innerHTML='<span class="n">'+String(i+1).padStart(2,'0')+'</span><span>'+s+'</span>';
+    host.appendChild(d); stepEls.push(d);
+  });
+}
+function markStep(i){
+  stepEls.forEach((el,j)=>{
+    el.classList.toggle('now',j===i);
+    el.classList.toggle('done',j<i);
+  });
+  if(stepEls[i]) stepEls[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function setRun(title,sub){ $('runTitle').textContent=title; $('runSub').textContent=sub||''; }
+
+function ask(question,options){
+  return new Promise(resolve=>{
+    setRun(question,'Nimm das Handy kurz weg und schau auf das Display.');
+    beep(660,150); setTimeout(()=>beep(660,150),220); say(question);
+    const box=$('confirmBox'), btns=$('confirmBtns');
+    btns.innerHTML=''; box.style.display='block';
+    options.forEach(o=>{
+      const b=document.createElement('button');
+      b.textContent=o.label; if(o.primary) b.className='primary';
+      b.onclick=()=>{ box.style.display='none'; resolve(o.value); };
+      btns.appendChild(b);
+    });
+  });
+}
+
+/* ---------------- Der eigentliche Ablauf ---------------- */
+async function runSequence(){
+  const c=cfg();
+  aborted=false; paused=false;
+
+  const plan=['Vorlauf — Handy auflegen','Menü öffnen (1 kurzer Impuls)'];
+  c.pin.split('').forEach((d,i)=>plan.push('PIN-Stelle '+(i+1)+': '+d+' → '+(d==='0'?'kein Impuls, nur warten':d+'× kurz')));
+  plan.push('PIN prüfen — Display zeigt P');
+  if(c.model==='e220'&&(c.inf||c.pinOff)){
+    plan.push('7 kurze Impulse: P → E → 1d → 7d → 30d → 365d → HIS → InF');
+    if(c.inf) plan.push('InF prüfen und ggf. mit langem Impuls auf on');
+    if(c.pinOff){ plan.push('1 kurzer Impuls: InF → PIn'); plan.push('PIn prüfen und ggf. mit langem Impuls auf oFF'); }
+  }
+  plan.push('Fertig');
+  renderSteps(plan);
+  let s=0;
+
+  try{
+    if(c.src==='torch') await initTorch();
+    try{ if('wakeLock' in navigator) wakeLock=await navigator.wakeLock.request('screen'); }catch(e){}
+
+    /* Vorlauf */
+    markStep(s++);
+    setRun('Handy auflegen','Optische Schnittstelle: rechts oben auf der Frontplatte.');
+    say('Handy jetzt auf den Sensor legen.');
+    for(let i=c.lead;i>0;i--){
+      $('runCount').style.display='block'; $('runCount').textContent=i;
+      beep(520,90); await gate(); await sleep(1000);
+    }
+    $('runCount').style.display='none'; beep(1040,200);
+
+    /* Menü öffnen */
+    markStep(s++);
+    setRun('Menü öffnen','1 kurzer Impuls');
+    setLcd('8 8 8 8 8 8','8 8 8 8 8','Displaytest',true);
+    await pulse(c.short);
+    await sleep(c.digit);
+
+    /* PIN */
+    for(let i=0;i<c.pin.length;i++){
+      markStep(s++);
+      const d=+c.pin[i];
+      setRun('PIN-Stelle '+(i+1),d===0?'0 — kein Impuls, nur warten':d+' × kurz blinken');
+      setLcd('PIn','-'.repeat(4-i)+String(d),'PIN-Eingabe, Stelle '+(i+1),true);
+      for(let k=0;k<d;k++){ await pulse(c.short); await gate(); await sleep(c.gap); }
+      await gate(); await sleep(c.digit);
+    }
+
+    /* PIN-Kontrolle */
+    markStep(s++);
+    setLcd('1 8 0','P','nach korrekter PIN: Momentanleistung P',true);
+    const ok=await ask('Zeigt das Display jetzt "P"?',[
+      {label:'Ja, P steht da',value:true,primary:true},
+      {label:'Nein',value:false}
+    ]);
+    if(!ok){
+      setRun('PIN nicht angenommen','Der Zähler ist auf die Standardanzeige zurückgefallen. Ablauf neu starten — ggf. Impulslänge oder Ziffernpause anpassen.');
+      say('PIN nicht angenommen.');
+      cleanup(); return;
+    }
+
+    if(c.model!=='e220'||(!c.inf&&!c.pinOff)){
+      markStep(s++); finish(); return;
+    }
+
+    /* P → InF: 7 kurze Impulse */
+    markStep(s++);
+    const menuPath=['E','1d','7d','30d','365d','HIS','InF'];
+    for(let i=0;i<7;i++){
+      setRun('Weiter im Menü','Schritt '+(i+1)+' von 7 → '+menuPath[i]);
+      setLcd('1 8 0',menuPath[i],'Menüpunkt '+menuPath[i],true);
+      await pulse(c.short); await gate(); await sleep(c.menu);
+    }
+
+    /* InF umschalten */
+    if(c.inf){
+      markStep(s++);
+      setLcd('I n F','o n','InF — Datensatz auf der INFO-Schnittstelle',true);
+      const st=await ask('Steht "InF" oben und was zeigt die untere Zeile?',[
+        {label:'InF – oFF',value:'off',primary:true},
+        {label:'InF – on',value:'on'},
+        {label:'Etwas anderes',value:'other'}
+      ]);
+      if(st==='other'){ bail('Menüpunkt stimmt nicht'); return; }
+      if(st==='off'){
+        setRun('InF einschalten','langer Impuls, über 5 Sekunden');
+        say('Handy wieder auflegen. Langer Impuls.');
+        await sleep(2500); beep(1040,200);
+        await pulse(c.long); await sleep(1200);
+      } else {
+        setRun('InF steht schon auf on','übersprungen');
+        await sleep(900);
+      }
+    }
+
+    /* InF → PIn und umschalten */
+    if(c.pinOff){
+      markStep(s++);
+      setRun('Weiter zu PIn','1 kurzer Impuls');
+      setLcd('P I n','o n','PIn — PIN-Abfrage',true);
+      await pulse(c.short); await sleep(c.menu);
+
+      markStep(s++);
+      const st=await ask('Steht "PIn" oben — und was zeigt die untere Zeile?',[
+        {label:'PIn – on',value:'on',primary:true},
+        {label:'PIn – oFF',value:'off'},
+        {label:'Etwas anderes',value:'other'}
+      ]);
+      if(st==='other'){ bail('Menüpunkt stimmt nicht'); return; }
+      if(st==='on'){
+        setRun('PIN-Abfrage abschalten','langer Impuls, über 5 Sekunden');
+        say('Handy wieder auflegen. Langer Impuls.');
+        await sleep(2500); beep(1040,200);
+        await pulse(c.long); await sleep(1200);
+      }
+    }
+
+    markStep(s++); finish();
+
+  }catch(e){
+    if(String(e.message)!=='abgebrochen'){
+      setRun('Abgebrochen',e.message||String(e));
+    } else {
+      setRun('Abgebrochen','Am Zähler wurde nichts verändert, wenn kein langer Impuls gesendet wurde.');
+    }
+    cleanup();
+  }
+}
+function bail(msg){
+  setRun('Angehalten: '+msg,'Sicherheitshalber nichts gesendet. Warte 120 s, bis der Zähler zurückfällt, und starte neu.');
+  say('Angehalten.'); cleanup();
+}
+function finish(){
+  setLcd('1 8 0','P','fertig — Momentanleistung steht in Zeile 2',true);
+  setRun('Fertig','Der Lesekopf sollte jetzt 1-0:16.7.0 sehen. Prüfen: liefert der Smart Meter eine Wattzahl?');
+  beep(880,140); setTimeout(()=>beep(1320,240),180); say('Fertig.');
+  cleanup();
+}
+function cleanup(){
+  lightOff();
+  if(torchTrack||torchStream){ stopStream(torchStream); torchStream=null; torchTrack=null; camEl.srcObject=null; }
+  if(wakeLock){ try{wakeLock.release()}catch(e){} wakeLock=null; }
+  $('runBtns').innerHTML='';
+  const b=document.createElement('button'); b.className='primary'; b.textContent='Zurück';
+  b.onclick=()=>{ $('run').style.display='none'; $('setup').style.display='block'; };
+  $('runBtns').appendChild(b);
+}
+
+/* ---------------- Ablaufplan zum Selberblinken ---------------- */
+function printPlan(){
+  const c=cfg();
+  const L=[];
+  L.push('ZÄHLER: '+(c.model==='e220'?'Landis+Gyr E220 / E230 / E320':'generisch'));
+  L.push('kurzer Impuls < 2 s   ·   langer Impuls > 5 s   ·   Ziffer wird nach ~3 s übernommen');
+  L.push('');
+  L.push(' 1.  1× kurz            → Displaytest, dann PIN-Eingabe');
+  c.pin.split('').forEach((d,i)=>{
+    L.push('     Stelle '+(i+1)+': '+(d==='0'?'nicht blinken'.padEnd(14):(d+'× kurz').padEnd(14))+' → 3 s warten');
+  });
+  L.push('     Display zeigt jetzt: P  (Momentanleistung)');
+  if(c.model==='e220'){
+    L.push('');
+    L.push(' 2.  je 1× kurz weiter: P → E → 1d → 7d → 30d → 365d → HIS → InF');
+    L.push('     ACHTUNG bei HIS: langer Impuls löscht die historischen Werte.');
+    if(c.inf){
+      L.push('');
+      L.push(' 3.  bei "InF":  zeigt es oFF → 1× lang (>5 s) = erweiterter Datensatz an');
+      L.push('                 zeigt es on  → nichts tun');
+    }
+    if(c.pinOff){
+      L.push('');
+      L.push(' 4.  1× kurz → "PIn"');
+      L.push('     zeigt es on  → 1× lang (>5 s) = PIN-Abfrage aus');
+      L.push('     zeigt es oFF → nichts tun');
+    }
+  }
+  L.push('');
+  L.push('Nach 120 s ohne Impuls fällt der Zähler auf die Standardanzeige zurück.');
+  $('planOut').innerHTML='<div class="card"><h2>Ablaufplan</h2><pre class="plan">'+
+    L.join('\n').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre></div>';
+  $('planOut').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ---------------- Verdrahtung ---------------- */
+$('source').addEventListener('change',()=>{
+  const v=$('source').value;
+  $('srcHint').textContent = v==='screen'
+    ? 'Display-Helligkeit vorher auf Maximum. Weiß auf einem OLED-Display liefert am Sensor deutlich mehr als die geforderten 400 Lux, solange es direkt aufliegt.'
+    : v==='torch'
+    ? 'Der Browser fragt nach Kamerazugriff. Nicht jedes Gerät gibt den Blitz für Webseiten frei — wenn es nicht klappt, nimm den Bildschirm.'
+    : 'Du bekommst die fertige Blinkfolge als Text, zum Abarbeiten mit einer echten Taschenlampe.';
+});
+$('diagBtn').addEventListener('click',runDiagnose);
+$('model').addEventListener('change',()=>{
+  const gen=$('model').value==='generic';
+  $('tasksCard').style.opacity=gen?.45:1;
+  $('tInf').disabled=$('tPin').disabled=gen;
+});
+$('start').addEventListener('click',()=>{
+  const c=cfg();
+  if(!/^\d{4}$/.test(c.pin)){ alert('Die PIN muss vierstellig sein.'); return; }
+  $('planOut').innerHTML='';
+  if(c.src==='plan'){ printPlan(); return; }
+  $('setup').style.display='none'; $('run').style.display='block';
+  $('runBtns').innerHTML='';
+  const a=document.createElement('button'); a.className='ghost'; a.textContent='Abbrechen';
+  a.onclick=()=>{aborted=true;};
+  const p=document.createElement('button'); p.className='ghost'; p.textContent='Pause';
+  p.onclick=()=>{paused=!paused;p.textContent=paused?'Weiter':'Pause';};
+  $('runBtns').appendChild(a); $('runBtns').appendChild(p);
+  window.scrollTo({top:0,behavior:'smooth'});
+  runSequence();
+});
+</script>
+</body>
+</html>
