@@ -64,6 +64,12 @@ Zustand, er setzt keinen Sollwert.
    `1d`, `7d`, `30d`, `365d` und bei `HIS` löscht er die dortigen Werte.
    Das sind fünf empfindliche Positionen auf dem Weg zu `InF`.
 
+**Stand 19.08.2026:** Ein vollständiger Durchlauf am Gerät war erfolgreich,
+die Sequenz führt bis `InF`, beide Umschalter sind gesetzt. Die konkret
+gemessene Schrittzahl steht damit aber nur im localStorage des Telefons
+(`zb.menupfad.v1`), nicht hier — wer sie kennt, trägt sie oben in Punkt 1
+nach. Erst dann ist die Unsicherheit ausgeräumt statt nur umgangen.
+
 Deshalb hält die App **vor jedem langen Impuls** an und fragt, was auf dem
 Display steht. Diese Haltepunkte sind eine Sicherheitsmaßnahme, keine
 Bequemlichkeitslücke. Wer sie entfernen will, muss vorher die Menüreihenfolge
@@ -163,11 +169,14 @@ gehostet werden.
 
 ## Offene Punkte
 
-- [x] Lernmodus — gebaut, am Gerät noch nicht erprobt.
+- [x] Lernmodus — gebaut und am Gerät gelaufen.
 - [ ] Bei „Etwas anderes" an den **Umschalt**-Haltepunkten (`InF`, `PIn`) nicht
       abbrechen, sondern korrigieren lassen. In der Menüphase erledigt der
       Lernmodus das; dort ist Weiterzählen gefahrlos.
 - [ ] Fallback über die `ImageCapture`-API, falls `applyConstraints` auf einem
       Gerät scheitert.
-- [ ] Praxistest am Zähler steht noch aus. Erfolgskontrolle ist nicht das
-      Display, sondern ob der Zendure-Lesekopf eine Wattzahl liefert.
+- [x] Praxistest am Zähler — am 19.08.2026 erfolgreich, `InF` und `PIn` sind
+      gesetzt.
+- [ ] Gegenprobe am Zendure-Lesekopf: Erfolgskontrolle ist nicht das Display,
+      sondern eine Wattzahl aus `1-0:16.7.0`.
+- [ ] Die gemessene Menüreihenfolge hier eintragen (siehe „Stand" oben).
