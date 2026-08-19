@@ -69,6 +69,41 @@ Display steht. Diese Haltepunkte sind eine Sicherheitsmaßnahme, keine
 Bequemlichkeitslücke. Wer sie entfernen will, muss vorher die Menüreihenfolge
 am konkreten Gerät verifiziert haben.
 
+## Lernmodus
+
+Räumt Unsicherheit 1 aus, indem er sie misst statt sie zu glauben. Statt in
+der Menüphase blind sieben Impulse zu zählen, sendet er **einen** kurzen
+Impuls, hält an und fragt über ein Raster der bekannten Menüpunkte, was
+tatsächlich im Display steht — bis der Nutzer `InF` meldet (bzw. `PIn`, wenn
+nur die PIN-Abfrage abgeschaltet werden soll).
+
+Tragende Überlegungen, bitte beim Umbauen erhalten:
+
+- **Die Segmentanzeige sagt im Lernmodus nichts vorher** (`- - -`). Zeigt sie
+  den erwarteten Menüpunkt, bestätigt der Nutzer die Erwartung statt der
+  Realität — dann misst der Modus nichts.
+- **Ein kurzer Impuls ist folgenlos.** Deshalb bricht „etwas anderes" hier
+  *nicht* ab, sondern wird als `?` protokolliert und weitergezählt. Der
+  Lernmodus entscheidet nie über einen langen Impuls; das bleibt der
+  bestehenden Abfrage vor `InF`/`PIn` überlassen.
+- **„Standardanzeige"** ist eine eigene Antwortmöglichkeit. Nach 120 s ohne
+  Impuls fällt der Zähler zurück, und die App kann das nicht selbst merken —
+  ohne diesen Knopf wird der Nutzer in eine falsche Antwort gedrängt.
+- Die 120 s laufen **zwischen zwei Impulsen**, nicht kumulativ; jeder
+  Haltepunkt hat sein eigenes Budget. Ein Zähler in der Ablaufansicht zeigt
+  den Abstand, ab 90 s mit Warnton.
+- **Zurück gibt es nicht** — das Menü kennt nur Vorwärtsimpulse. Korrigiert
+  wird vorwärts oder durch Neustart nach 120 s.
+- Deckel bei 20 Schritten. Erscheint `InF` bis dahin nicht, hat der
+  Messstellenbetreiber den Punkt vermutlich nicht freigegeben. Auch das ist
+  ein Ergebnis, kein Fehler.
+
+Das Ergebnis landet als Pfad-Array unter dem localStorage-Schlüssel
+`zb.menupfad.v1` (nur die Menüreihenfolge — **die PIN nie**). Ab dem zweiten
+Lauf ist der Lernmodus vorbelegt aus, der blinde Durchlauf nutzt die gelernte
+Schrittzahl und beschriftet die Zwischenschritte damit; der Textplan ebenso.
+„Gelerntes vergessen" in der Einrichtung setzt zurück.
+
 Ebenfalls unklar: ob die Einstellungen einen Stromausfall überleben. Der
 Firmwareparameter „Endnutzereinstellungen Stromausfall" wird vom
 Messstellenbetreiber gesetzt und ist nicht änderbar. Die Kurzanleitung sagt,
@@ -128,11 +163,10 @@ gehostet werden.
 
 ## Offene Punkte
 
-- [ ] Lernmodus: In der Menüphase nach jedem einzelnen kurzen Impuls anhalten,
-      bis `InF` erscheint. Macht die unsichere Reihenfolge irrelevant. Ab dem
-      zweiten Durchlauf kann die dann bekannte Zahl fest verdrahtet werden.
-- [ ] Bei „Etwas anderes" an einem Haltepunkt nicht abbrechen, sondern
-      korrigieren lassen („ein Schritt weiter" / „einen zurück").
+- [x] Lernmodus — gebaut, am Gerät noch nicht erprobt.
+- [ ] Bei „Etwas anderes" an den **Umschalt**-Haltepunkten (`InF`, `PIn`) nicht
+      abbrechen, sondern korrigieren lassen. In der Menüphase erledigt der
+      Lernmodus das; dort ist Weiterzählen gefahrlos.
 - [ ] Fallback über die `ImageCapture`-API, falls `applyConstraints` auf einem
       Gerät scheitert.
 - [ ] Praxistest am Zähler steht noch aus. Erfolgskontrolle ist nicht das

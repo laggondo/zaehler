@@ -124,6 +124,10 @@ button.primary{background:var(--messing);color:#14181c;border-color:var(--messin
 button.ghost{background:transparent}
 button[disabled]{opacity:.4;cursor:not-allowed}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.btnrow.cols4{grid-template-columns:repeat(4,1fr);gap:8px}
+.btnrow.cols4 button{padding:14px 2px;font-size:15px}
+.btnrow button.wide{grid-column:1/-1}
+button.mini{width:auto;padding:6px 10px;font-size:12px;margin-top:8px}
 
 details{border-top:1px solid var(--linie);margin-top:14px;padding-top:12px}
 summary{font-size:13px;color:var(--muted);cursor:pointer;list-style:none}
@@ -132,6 +136,13 @@ summary::before{content:"+ ";color:var(--messing)}
 details[open] summary::before{content:"– "}
 details .inner{padding-top:14px}
 .hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+.learned{font-size:12.5px;color:var(--muted);margin:12px 0 0;line-height:1.6}
+.learned b{color:var(--text);font-weight:600}
+.gapline{
+  font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);
+  margin:10px 0 0;display:none
+}
+.gapline.late{color:var(--alarm)}
 .warn{
   font-size:12.5px;color:var(--alarm);border-left:2px solid var(--alarm);
   padding-left:10px;margin:12px 0 0
@@ -221,6 +232,12 @@ pre.plan{
           <small>Momentanleistung bleibt dauerhaft sichtbar, kein erneutes Einblinken nach Stromausfall.</small></span>
       </label>
       <p class="warn">Direkt vor <strong>InF</strong> liegt <strong>HIS</strong>. Ein langer Impuls an dieser Stelle löscht die historischen Verbrauchswerte. Der Ablauf hält deshalb vor jedem Umschalten an und fragt, was auf dem Display steht.</p>
+      <label class="check" style="border-top:1px solid var(--linie)">
+        <input type="checkbox" id="learn" checked>
+        <span class="txt">Lernmodus — Menü Schritt für Schritt
+          <small>Hält nach jedem kurzen Impuls an und fragt, was tatsächlich im Display steht, statt sieben Schritte blind zu zählen. Dauert länger, macht die unverifizierte Menüreihenfolge aber egal — und merkt sich das Ergebnis für den nächsten Lauf.</small></span>
+      </label>
+      <p class="learned" id="learnState"></p>
     </div>
 
     <div class="card">
@@ -286,6 +303,7 @@ pre.plan{
     <div class="card">
       <p class="big" id="runTitle">Bereit</p>
       <p class="sub" id="runSub"></p>
+      <p class="gapline" id="gapline"></p>
       <div class="count" id="runCount" style="display:none">5</div>
       <div id="confirmBox" style="display:none">
         <div class="btnrow" id="confirmBtns"></div>
@@ -356,8 +374,44 @@ const cfg=()=>({
   src:$('source').value,
   short:+$('tShort').value, gap:+$('tGap').value, digit:+$('tDigit').value,
   long:+$('tLong').value, menu:+$('tMenu').value, lead:+$('tLead').value,
-  speak:$('speak').checked
+  speak:$('speak').checked,
+  learn:$('learn').checked
 });
+
+/* ---------------- Gelernte Menüreihenfolge ----------------
+   Nur die Reihenfolge der Menüpunkte landet im localStorage — die PIN nie. */
+const LS_KEY='zb.menupfad.v1';
+const MENU_LABELS=['E','1d','7d','30d','365d','HIS','InF','PIn'];
+const DEFAULT_PATH=['E','1d','7d','30d','365d','HIS','InF','PIn'];
+function loadLearned(){
+  try{ const r=localStorage.getItem(LS_KEY); return r?JSON.parse(r):null; }catch(e){ return null; }
+}
+function saveLearned(path){
+  try{ localStorage.setItem(LS_KEY,JSON.stringify({path:path,date:new Date().toISOString()})); }catch(e){}
+}
+function clearLearned(){ try{ localStorage.removeItem(LS_KEY); }catch(e){} }
+function pathLabels(){
+  const l=loadLearned();
+  return (l&&l.path&&l.path.length)?l.path:DEFAULT_PATH;
+}
+function stepsTo(target){
+  const i=pathLabels().indexOf(target);
+  return i>=0 ? i+1 : DEFAULT_PATH.indexOf(target)+1;
+}
+function renderLearnState(){
+  const l=loadLearned(), el=$('learnState');
+  if(!l||!l.path||!l.path.length){
+    el.innerHTML='Noch nichts am Gerät gelernt — ohne Lernmodus zählt der Ablauf blind '+
+      stepsTo('InF')+' Schritte bis InF, so wie es im Ablaufdiagramm des Handbuchs steht. '+
+      'Verifiziert ist das nicht.';
+    return;
+  }
+  const d=new Date(l.date);
+  let t='Am Gerät gelernt ('+d.toLocaleDateString('de-DE')+'): <b>P → '+l.path.join(' → ')+'</b>';
+  if(l.path.indexOf('InF')>=0) t+='<br>InF liegt <b>'+stepsTo('InF')+' kurze Impulse</b> hinter P.';
+  el.innerHTML=t+'<br><button class="ghost mini" id="forget">Gelerntes vergessen</button>';
+  $('forget').onclick=()=>{ clearLearned(); $('learn').checked=true; renderLearnState(); };
+}
 
 /* ---------------- Ton & Sprache ---------------- */
 let ac=null;
@@ -470,6 +524,34 @@ async function gate(){
 }
 async function pulse(ms){
   await gate(); await lightOn(); await sleep(ms); await lightOff();
+  lastPulseAt=Date.now(); warnedLate=false;
+}
+
+/* Der Zähler fällt nach 120 s ohne Impuls auf die Standardanzeige zurück.
+   Gezählt wird der Abstand zwischen zwei Impulsen, nicht die Gesamtdauer —
+   jeder Haltepunkt hat also sein eigenes Budget. Sichtbar machen. */
+let lastPulseAt=0, warnedLate=false, gapIv=null;
+function startGapTimer(){
+  stopGapTimer(); lastPulseAt=0; warnedLate=false;
+  gapIv=setInterval(tickGap,500);
+}
+function stopGapTimer(){
+  if(gapIv){ clearInterval(gapIv); gapIv=null; }
+  const el=$('gapline'); if(el){ el.style.display='none'; el.classList.remove('late'); }
+}
+function tickGap(){
+  const el=$('gapline');
+  if(!lastPulseAt){ el.style.display='none'; return; }
+  const t=Math.round((Date.now()-lastPulseAt)/1000);
+  el.style.display='block';
+  el.textContent = t>=120
+    ? 'seit dem letzten Impuls: '+t+' s — der Zähler ist vermutlich zurückgefallen'
+    : 'seit dem letzten Impuls: '+t+' s  ·  Rückfall nach 120 s';
+  el.classList.toggle('late',t>=90);
+  if(t>=90&&!warnedLate){
+    warnedLate=true; beep(440,320);
+    say('Achtung, der Zähler fällt gleich zurück.');
+  }
 }
 
 let stepEls=[];
@@ -490,19 +572,79 @@ function markStep(i){
 }
 function setRun(title,sub){ $('runTitle').textContent=title; $('runSub').textContent=sub||''; }
 
-function ask(question,options){
-  return new Promise(resolve=>{
-    setRun(question,'Nimm das Handy kurz weg und schau auf das Display.');
-    beep(660,150); setTimeout(()=>beep(660,150),220); say(question);
+function ask(question,options,opts){
+  opts=opts||{};
+  return new Promise((resolve,reject)=>{
+    setRun(question,opts.sub||'Nimm das Handy kurz weg und schau auf das Display.');
+    beep(660,150); setTimeout(()=>beep(660,150),220); say(opts.spoken||question);
     const box=$('confirmBox'), btns=$('confirmBtns');
     btns.innerHTML=''; box.style.display='block';
+    btns.className='btnrow'+(opts.cols===4?' cols4':'');
+    let iv=null;
+    const close=fn=>{
+      if(iv) clearInterval(iv);
+      box.style.display='none'; btns.className='btnrow'; fn();
+    };
     options.forEach(o=>{
       const b=document.createElement('button');
-      b.textContent=o.label; if(o.primary) b.className='primary';
-      b.onclick=()=>{ box.style.display='none'; resolve(o.value); };
+      b.textContent=o.label;
+      const cls=[]; if(o.primary) cls.push('primary'); if(o.wide) cls.push('wide');
+      if(cls.length) b.className=cls.join(' ');
+      b.onclick=()=>close(()=>resolve(o.value));
       btns.appendChild(b);
     });
+    // Abbrechen soll auch an einem Haltepunkt greifen.
+    iv=setInterval(()=>{ if(aborted) close(()=>reject(new Error('abgebrochen'))); },150);
   });
+}
+
+/* Nach jedem Haltepunkt liegt das Handy nicht mehr auf dem Sensor. */
+async function relay(title){
+  setRun(title||'Handy wieder auflegen','gleich der nächste Impuls');
+  say('Handy auflegen.');
+  await gate(); await sleep(2000); beep(1040,160);
+}
+
+/* ---------------- Lernmodus ----------------
+   Ersetzt das blinde Zählen durch Ablesen: ein kurzer Impuls, anhalten,
+   fragen was wirklich dasteht, notieren. Ein kurzer Impuls ist folgenlos —
+   ein unbekannter Menüpunkt darf hier also protokolliert werden, statt den
+   Lauf abzubrechen. Über einen langen Impuls entscheidet dieser Modus nie;
+   das bleibt der bestehenden Abfrage vor InF bzw. PIn überlassen. */
+async function learnMenu(c,target){
+  const path=[];
+  for(let n=1;n<=20;n++){
+    await relay('Handy auflegen — Schritt '+n);
+    setRun('Menüschritt '+n,'1 kurzer Impuls');
+    setLcd('1 8 0','- - -','Lernmodus — ablesen, nicht raten',true);
+    await pulse(c.short); await gate(); await sleep(c.menu);
+
+    const opts=MENU_LABELS.map(l=>({label:l,value:l}));
+    opts.push({label:'etwas anderes',value:'?',wide:true});
+    opts.push({label:'Standardanzeige — 1 8 0 …',value:'fallback',wide:true});
+    const ans=await ask('Schritt '+n+' — was steht oben im Display?',opts,{
+      cols:4,
+      spoken:'Schritt '+n+'. Was steht da?',
+      sub:'Handy hochnehmen, ablesen, antippen. Nicht raten — genau dafür ist der Modus da.'
+    });
+
+    if(ans==='fallback'){
+      bail('Zähler auf die Standardanzeige zurückgefallen');
+      return null;
+    }
+    path.push(ans);
+    if(ans===target) return path;
+    if(target==='InF'&&ans==='PIn'){
+      const w=await ask('PIn — damit ist das Menü über InF hinaus.',[
+        {label:'Trotzdem weiter durchtippen',value:'go'},
+        {label:'Abbrechen',value:'stop',primary:true}
+      ],{sub:'Ob das Menü wieder von vorn umläuft, steht in keiner Quelle. '+
+             'Sicher ist: abbrechen, 120 s warten, neu starten. Kurze Impulse sind folgenlos.'});
+      if(w==='stop'){ bail('über '+target+' hinaus'); return null; }
+    }
+  }
+  bail('nach 20 Schritten kein '+target+' im Display');
+  return null;
 }
 
 /* ---------------- Der eigentliche Ablauf ---------------- */
@@ -510,19 +652,28 @@ async function runSequence(){
   const c=cfg();
   aborted=false; paused=false;
 
+  const target=c.inf?'InF':'PIn';
+  const nSteps=stepsTo(target);
+
   const plan=['Vorlauf — Handy auflegen','Menü öffnen (1 kurzer Impuls)'];
   c.pin.split('').forEach((d,i)=>plan.push('PIN-Stelle '+(i+1)+': '+d+' → '+(d==='0'?'kein Impuls, nur warten':d+'× kurz')));
   plan.push('PIN prüfen — Display zeigt P');
   if(c.model==='e220'&&(c.inf||c.pinOff)){
-    plan.push('7 kurze Impulse: P → E → 1d → 7d → 30d → 365d → HIS → InF');
+    plan.push(c.learn
+      ? 'Lernmodus: Menü Schritt für Schritt bis '+target
+      : nSteps+' kurze Impulse: P → '+pathLabels().slice(0,nSteps).join(' → '));
     if(c.inf) plan.push('InF prüfen und ggf. mit langem Impuls auf on');
-    if(c.pinOff){ plan.push('1 kurzer Impuls: InF → PIn'); plan.push('PIn prüfen und ggf. mit langem Impuls auf oFF'); }
+    if(c.pinOff){
+      if(c.inf) plan.push('1 kurzer Impuls: InF → PIn');
+      plan.push('PIn prüfen und ggf. mit langem Impuls auf oFF');
+    }
   }
   plan.push('Fertig');
   renderSteps(plan);
   let s=0;
 
   try{
+    startGapTimer();
     if(c.src==='torch') await initTorch();
     try{ if('wakeLock' in navigator) wakeLock=await navigator.wakeLock.request('screen'); }catch(e){}
 
@@ -570,13 +721,22 @@ async function runSequence(){
       markStep(s++); finish(); return;
     }
 
-    /* P → InF: 7 kurze Impulse */
+    /* P → InF (bzw. direkt PIn, wenn nur die PIN-Abfrage weg soll) */
     markStep(s++);
-    const menuPath=['E','1d','7d','30d','365d','HIS','InF'];
-    for(let i=0;i<7;i++){
-      setRun('Weiter im Menü','Schritt '+(i+1)+' von 7 → '+menuPath[i]);
-      setLcd('1 8 0',menuPath[i],'Menüpunkt '+menuPath[i],true);
-      await pulse(c.short); await gate(); await sleep(c.menu);
+    if(c.learn){
+      const learned=await learnMenu(c,target);
+      if(!learned) return;
+      saveLearned(learned);
+      renderLearnState();
+    } else {
+      const labels=pathLabels();
+      await relay('Handy auflegen');
+      for(let i=0;i<nSteps;i++){
+        const l=labels[i]||'?';
+        setRun('Weiter im Menü','Schritt '+(i+1)+' von '+nSteps+' → '+l);
+        setLcd('1 8 0',l==='?'?'- - -':l,'Menüpunkt '+l,true);
+        await pulse(c.short); await gate(); await sleep(c.menu);
+      }
     }
 
     /* InF umschalten */
@@ -602,10 +762,13 @@ async function runSequence(){
 
     /* InF → PIn und umschalten */
     if(c.pinOff){
-      markStep(s++);
-      setRun('Weiter zu PIn','1 kurzer Impuls');
-      setLcd('P I n','o n','PIn — PIN-Abfrage',true);
-      await pulse(c.short); await sleep(c.menu);
+      if(c.inf){
+        markStep(s++);
+        setRun('Weiter zu PIn','1 kurzer Impuls');
+        setLcd('P I n','o n','PIn — PIN-Abfrage',true);
+        await relay('Handy auflegen');
+        await pulse(c.short); await sleep(c.menu);
+      }
 
       markStep(s++);
       const st=await ask('Steht "PIn" oben — und was zeigt die untere Zeile?',[
@@ -644,7 +807,7 @@ function finish(){
   cleanup();
 }
 function cleanup(){
-  lightOff();
+  lightOff(); stopGapTimer();
   if(torchTrack||torchStream){ stopStream(torchStream); torchStream=null; torchTrack=null; camEl.srcObject=null; }
   if(wakeLock){ try{wakeLock.release()}catch(e){} wakeLock=null; }
   $('runBtns').innerHTML='';
@@ -666,9 +829,17 @@ function printPlan(){
   });
   L.push('     Display zeigt jetzt: P  (Momentanleistung)');
   if(c.model==='e220'){
+    const tgt=c.inf?'InF':'PIn';
+    const nn=stepsTo(tgt);
+    const lp=pathLabels().slice(0,nn);
+    const gelernt=loadLearned();
     L.push('');
-    L.push(' 2.  je 1× kurz weiter: P → E → 1d → 7d → 30d → 365d → HIS → InF');
-    L.push('     ACHTUNG bei HIS: langer Impuls löscht die historischen Werte.');
+    L.push(' 2.  '+nn+'× je 1 kurzer Impuls: P → '+lp.join(' → '));
+    L.push('     '+(gelernt
+      ? 'Reihenfolge am Gerät gelernt am '+new Date(gelernt.date).toLocaleDateString('de-DE')+'.'
+      : 'Reihenfolge laut Handbuch-Diagramm — NICHT verifiziert. Zähl lieber mit.'));
+    if(lp.indexOf('HIS')>=0)
+      L.push('     ACHTUNG bei HIS: langer Impuls löscht die historischen Werte.');
     if(c.inf){
       L.push('');
       L.push(' 3.  bei "InF":  zeigt es oFF → 1× lang (>5 s) = erweiterter Datensatz an');
@@ -698,10 +869,12 @@ $('source').addEventListener('change',()=>{
     : 'Du bekommst die fertige Blinkfolge als Text, zum Abarbeiten mit einer echten Taschenlampe.';
 });
 $('diagBtn').addEventListener('click',runDiagnose);
+$('learn').checked=!loadLearned();
+renderLearnState();
 $('model').addEventListener('change',()=>{
   const gen=$('model').value==='generic';
   $('tasksCard').style.opacity=gen?.45:1;
-  $('tInf').disabled=$('tPin').disabled=gen;
+  $('tInf').disabled=$('tPin').disabled=$('learn').disabled=gen;
 });
 $('start').addEventListener('click',()=>{
   const c=cfg();
