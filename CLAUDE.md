@@ -129,7 +129,8 @@ Entwicklungsumgebung nicht abrufbar, nur über Suchmaschinen-Auszüge:
 
 | Größe | Wert | Quelle |
 |---|---|---|
-| optische Taste | rundes Feld links neben dem Display, Taschenlampen-Symbol — dort sitzt auch der Lesekopf | Foto des Geräts |
+| optische Taste | rundes Feld links unter dem Display, Taschenlampen-Symbol — „optische Bedientaste des Displays und Datenschnittstelle“ in einem | Anleitung LK13BE606739 (Werdau), Foto |
+| mechanische Taste | vorhanden, rechts neben dem Typenschild; gleiche Bedienung wie die optische | Anleitung LK13BE606739 (Werdau) |
 | Mindesthelligkeit | 400 Lux | Logarex-Anleitungen |
 | Öffnen | 1× kurz = Displaytest (5 s), dann PIN; 2× kurz = sofort PIN | Anleitung LK13BE606739 (Stadtwerke Werdau/Olbernhau) |
 | PIN-Eingabe | erste Stelle blinkt, je kurzer Impuls +1, Übernahme nach ~3 s | Anleitungen LK13BE8030x9/606xxx |
@@ -148,8 +149,11 @@ Unsicherheiten, bitte nicht wegoptimieren:
 3. Nach dem zweiten Öffnungsimpuls wartet die App nur die Menüschritt-Pause,
    nicht die Ziffernpause — sonst könnte die erste PIN-Stelle schon als 0
    übernommen werden. Am Gerät nicht verifiziert.
-4. IOmeter empfiehlt bei LK11/LK13 die mechanische Taste statt Taschenlampe,
-   falls vorhanden. Dann reicht der Ablaufplan.
+4. Der LK13BE606739 hat eine mechanische Bedientaste (Werdau-Anleitung,
+   Punkt 3); IOmeter empfiehlt sie statt der Taschenlampe. Dann reicht der
+   Ablaufplan. Die Werdau-Anleitung (2 Seiten, liegt vor) enthält **keine**
+   Menüreihenfolge — dafür die OB-Netz-Gebrauchsanweisung LK13BE606xxx
+   (Version 1, 2022-01-11) besorgen.
 5. Rückfallzeit (120 s beim E220) für Logarex nicht recherchiert.
 
 ## Lichtquelle: der harte Teil
