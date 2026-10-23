@@ -210,8 +210,11 @@ pre.plan{
         <select id="model">
           <option value="e220">Landis+Gyr E220 (AMxD)</option>
           <option value="e220">Landis+Gyr E230 / E320 (gleiche Menüführung)</option>
+          <option value="lk13be2">Logarex LK13BE / LK11BE — Zweirichtungszähler</option>
+          <option value="lk13be1">Logarex LK13BE / LK11BE — Einrichtungszähler</option>
           <option value="generic">Anderes Modell — nur PIN eingeben</option>
         </select>
+        <p class="hint" id="modelHint"></p>
       </div>
       <div class="field">
         <label for="pin">PIN vom Messstellenbetreiber</label>
@@ -231,11 +234,11 @@ pre.plan{
         <span class="txt">PIN-Abfrage abschalten <em>(PIn → oFF)</em>
           <small>Momentanleistung bleibt dauerhaft sichtbar, kein erneutes Einblinken nach Stromausfall.</small></span>
       </label>
-      <p class="warn">Direkt vor <strong>InF</strong> liegt <strong>HIS</strong>. Ein langer Impuls an dieser Stelle löscht die historischen Verbrauchswerte. Der Ablauf hält deshalb vor jedem Umschalten an und fragt, was auf dem Display steht.</p>
+      <p class="warn" id="dangerNote"></p>
       <label class="check" style="border-top:1px solid var(--linie)">
         <input type="checkbox" id="learn" checked>
         <span class="txt">Lernmodus — Menü Schritt für Schritt
-          <small>Hält nach jedem kurzen Impuls an und fragt, was tatsächlich im Display steht, statt sieben Schritte blind zu zählen. Dauert länger, macht die unverifizierte Menüreihenfolge aber egal — und merkt sich das Ergebnis für den nächsten Lauf.</small></span>
+          <small>Hält nach jedem kurzen Impuls an und fragt, was tatsächlich im Display steht, statt die Schritte blind zu zählen. Dauert länger, macht die unverifizierte Menüreihenfolge aber egal — und merkt sich das Ergebnis für den nächsten Lauf.</small></span>
       </label>
       <p class="learned" id="learnState"></p>
     </div>
@@ -378,37 +381,102 @@ const cfg=()=>({
   learn:$('learn').checked
 });
 
+/* ---------------- Zählerprofile ----------------
+   Alles, was sich zwischen den Modellen unterscheidet. Die Pfade sind
+   Annahmen aus Handbüchern bzw. Anleitungen Dritter, nicht am Gerät
+   verifiziert — '?' heißt: Anzahl bekannt, Displaytext nicht. */
+const LOGAREX_LABELS=['P','E','1d','7d','30d','365d','HIS','CLr','InF','PIn'];
+const LOGAREX_HINT='Optische Taste: das runde Feld links neben dem Display, unter dem das '+
+  'Taschenlampen-Symbol steht — dort sitzt auch der Lesekopf, also den Zendure vorher abnehmen. '+
+  'Öffnen per 2 kurzen Impulsen (der erste startet den Displaytest, der zweite springt direkt in die PIN-Eingabe). '+
+  'Die Schrittzahl bis InF stammt aus der IOmeter-Anleitung, nicht von Logarex selbst. '+
+  'Hat dein Zähler zusätzlich eine mechanische Taste, geht alles auch per Daumen — dann den Ablaufplan nehmen.';
+const LOGAREX_DANGER='Auf dem Weg zu <strong>InF</strong> liegen die Verbrauchsregister und '+
+  '<strong>HIS CLr</strong>. Ein langer Impuls an falscher Stelle löscht dort Werte. '+
+  'Der Ablauf hält deshalb vor jedem Umschalten an und fragt, was auf dem Display steht.';
+const METERS={
+  e220:{
+    name:'Landis+Gyr E220 / E230 / E320', menu:true,
+    key:'zb.menupfad.v1',
+    open:1, openWait:'digit',
+    labels:['E','1d','7d','30d','365d','HIS','InF','PIn'],
+    path:['E','1d','7d','30d','365d','HIS','InF','PIn'],
+    source:'so wie es im Ablaufdiagramm des Handbuchs steht',
+    sensor:'rechts oben auf der Frontplatte',
+    pinOk:'Zeigt das Display jetzt "P"?', pinOkYes:'Ja, P steht da', pinOkSub:null,
+    hint:'',
+    danger:'Direkt vor <strong>InF</strong> liegt <strong>HIS</strong>. Ein langer Impuls an dieser Stelle '+
+      'löscht die historischen Verbrauchswerte. Der Ablauf hält deshalb vor jedem Umschalten an und fragt, was auf dem Display steht.'
+  },
+  lk13be2:{
+    name:'Logarex LK13BE / LK11BE (Zweirichtung)', menu:true,
+    key:'zb.menupfad.lk13be2.v1',
+    open:2, openWait:'menu',
+    labels:LOGAREX_LABELS,
+    path:Array(12).fill('?').concat(['InF','PIn']),
+    source:'laut IOmeter-Anleitung für Zweirichtungszähler (13× kurz)',
+    sensor:'das runde Feld links neben dem Display (Taschenlampen-Symbol)',
+    pinOk:'Hat der Zähler die PIN angenommen?', pinOkYes:'Ja, Menü bzw. P erscheint',
+    pinOkSub:'Bei falscher PIN fällt er sofort auf die rollierende Anzeige zurück.',
+    hint:LOGAREX_HINT, danger:LOGAREX_DANGER
+  },
+  lk13be1:{
+    name:'Logarex LK13BE / LK11BE (Einrichtung)', menu:true,
+    key:'zb.menupfad.lk13be1.v1',
+    open:2, openWait:'menu',
+    labels:LOGAREX_LABELS,
+    path:Array(7).fill('?').concat(['InF','PIn']),
+    source:'laut IOmeter-Anleitung für Einrichtungszähler (8× kurz)',
+    sensor:'das runde Feld links neben dem Display (Taschenlampen-Symbol)',
+    pinOk:'Hat der Zähler die PIN angenommen?', pinOkYes:'Ja, Menü bzw. P erscheint',
+    pinOkSub:'Bei falscher PIN fällt er sofort auf die rollierende Anzeige zurück.',
+    hint:LOGAREX_HINT, danger:LOGAREX_DANGER
+  },
+  generic:{
+    name:'generisch', menu:false,
+    key:null, open:1, openWait:'digit', labels:[], path:[],
+    source:'', sensor:'siehe Anleitung des Zählers',
+    pinOk:'Hat der Zähler die PIN angenommen?', pinOkYes:'Ja', pinOkSub:null,
+    hint:'Sendet nur Öffnen und PIN. Menüschritte musst du selbst kennen.', danger:''
+  }
+};
+const M=()=>METERS[$('model').value]||METERS.e220;
+
 /* ---------------- Gelernte Menüreihenfolge ----------------
-   Nur die Reihenfolge der Menüpunkte landet im localStorage — die PIN nie. */
-const LS_KEY='zb.menupfad.v1';
-const MENU_LABELS=['E','1d','7d','30d','365d','HIS','InF','PIn'];
-const DEFAULT_PATH=['E','1d','7d','30d','365d','HIS','InF','PIn'];
+   Nur die Reihenfolge der Menüpunkte landet im localStorage — die PIN nie.
+   Je Zählermodell ein eigener Schlüssel; der E220 behält den alten. */
 function loadLearned(){
-  try{ const r=localStorage.getItem(LS_KEY); return r?JSON.parse(r):null; }catch(e){ return null; }
+  if(!M().key) return null;
+  try{ const r=localStorage.getItem(M().key); return r?JSON.parse(r):null; }catch(e){ return null; }
 }
 function saveLearned(path){
-  try{ localStorage.setItem(LS_KEY,JSON.stringify({path:path,date:new Date().toISOString()})); }catch(e){}
+  if(!M().key) return;
+  try{ localStorage.setItem(M().key,JSON.stringify({path:path,date:new Date().toISOString()})); }catch(e){}
 }
-function clearLearned(){ try{ localStorage.removeItem(LS_KEY); }catch(e){} }
+function clearLearned(){ if(M().key) try{ localStorage.removeItem(M().key); }catch(e){} }
 function pathLabels(){
   const l=loadLearned();
-  return (l&&l.path&&l.path.length)?l.path:DEFAULT_PATH;
+  return (l&&l.path&&l.path.length)?l.path:M().path;
 }
 function stepsTo(target){
   const i=pathLabels().indexOf(target);
-  return i>=0 ? i+1 : DEFAULT_PATH.indexOf(target)+1;
+  if(i>=0) return i+1;
+  // Gelernt wurde nur bis InF — PIn liegt einen Schritt dahinter.
+  if(target==='PIn'){ const j=pathLabels().indexOf('InF'); if(j>=0) return j+2; }
+  return M().path.indexOf(target)+1;
 }
 function renderLearnState(){
   const l=loadLearned(), el=$('learnState');
+  if(!M().menu){ el.innerHTML=''; return; }
   if(!l||!l.path||!l.path.length){
     el.innerHTML='Noch nichts am Gerät gelernt — ohne Lernmodus zählt der Ablauf blind '+
-      stepsTo('InF')+' Schritte bis InF, so wie es im Ablaufdiagramm des Handbuchs steht. '+
+      stepsTo('InF')+' Schritte bis InF, '+M().source+'. '+
       'Verifiziert ist das nicht.';
     return;
   }
   const d=new Date(l.date);
-  let t='Am Gerät gelernt ('+d.toLocaleDateString('de-DE')+'): <b>P → '+l.path.join(' → ')+'</b>';
-  if(l.path.indexOf('InF')>=0) t+='<br>InF liegt <b>'+stepsTo('InF')+' kurze Impulse</b> hinter P.';
+  let t='Am Gerät gelernt ('+d.toLocaleDateString('de-DE')+'): <b>'+(M()===METERS.e220?'P':'PIN')+' → '+l.path.join(' → ')+'</b>';
+  if(l.path.indexOf('InF')>=0) t+='<br>InF liegt <b>'+stepsTo('InF')+' kurze Impulse</b> hinter der PIN-Eingabe.';
   el.innerHTML=t+'<br><button class="ghost mini" id="forget">Gelerntes vergessen</button>';
   $('forget').onclick=()=>{ clearLearned(); $('learn').checked=true; renderLearnState(); };
 }
@@ -619,9 +687,9 @@ async function learnMenu(c,target){
     setLcd('1 8 0','- - -','Lernmodus — ablesen, nicht raten',true);
     await pulse(c.short); await gate(); await sleep(c.menu);
 
-    const opts=MENU_LABELS.map(l=>({label:l,value:l}));
+    const opts=M().labels.map(l=>({label:l,value:l}));
     opts.push({label:'etwas anderes',value:'?',wide:true});
-    opts.push({label:'Standardanzeige — 1 8 0 …',value:'fallback',wide:true});
+    opts.push({label:'Standardanzeige — Zählerstand',value:'fallback',wide:true});
     const ans=await ask('Schritt '+n+' — was steht oben im Display?',opts,{
       cols:4,
       spoken:'Schritt '+n+'. Was steht da?',
@@ -655,13 +723,15 @@ async function runSequence(){
   const target=c.inf?'InF':'PIn';
   const nSteps=stepsTo(target);
 
-  const plan=['Vorlauf — Handy auflegen','Menü öffnen (1 kurzer Impuls)'];
+  const m=M();
+  const openTxt=m.open===1?'1 kurzer Impuls':m.open+' kurze Impulse';
+  const plan=['Vorlauf — Handy auflegen','Menü öffnen ('+openTxt+')'];
   c.pin.split('').forEach((d,i)=>plan.push('PIN-Stelle '+(i+1)+': '+d+' → '+(d==='0'?'kein Impuls, nur warten':d+'× kurz')));
-  plan.push('PIN prüfen — Display zeigt P');
-  if(c.model==='e220'&&(c.inf||c.pinOff)){
+  plan.push(m===METERS.e220?'PIN prüfen — Display zeigt P':'PIN prüfen');
+  if(m.menu&&(c.inf||c.pinOff)){
     plan.push(c.learn
       ? 'Lernmodus: Menü Schritt für Schritt bis '+target
-      : nSteps+' kurze Impulse: P → '+pathLabels().slice(0,nSteps).join(' → '));
+      : nSteps+' kurze Impulse: '+pathLabels().slice(0,nSteps).join(' → '));
     if(c.inf) plan.push('InF prüfen und ggf. mit langem Impuls auf on');
     if(c.pinOff){
       if(c.inf) plan.push('1 kurzer Impuls: InF → PIn');
@@ -679,7 +749,7 @@ async function runSequence(){
 
     /* Vorlauf */
     markStep(s++);
-    setRun('Handy auflegen','Optische Schnittstelle: rechts oben auf der Frontplatte.');
+    setRun('Handy auflegen','Optische Taste: '+m.sensor+'.');
     say('Handy jetzt auf den Sensor legen.');
     for(let i=c.lead;i>0;i--){
       $('runCount').style.display='block'; $('runCount').textContent=i;
@@ -689,10 +759,16 @@ async function runSequence(){
 
     /* Menü öffnen */
     markStep(s++);
-    setRun('Menü öffnen','1 kurzer Impuls');
+    setRun('Menü öffnen',openTxt);
     setLcd('8 8 8 8 8 8','8 8 8 8 8','Displaytest',true);
-    await pulse(c.short);
-    await sleep(c.digit);
+    for(let k=0;k<m.open;k++){
+      if(k) { await gate(); await sleep(c.gap); }
+      await pulse(c.short);
+    }
+    // E220: Displaytest abwarten. Logarex: der zweite Impuls bricht den
+    // Displaytest ab, die PIN-Eingabe steht sofort — nicht so lange warten,
+    // dass schon die Ziffernübernahme greift.
+    await sleep(m.openWait==='menu'?c.menu:c.digit);
 
     /* PIN */
     for(let i=0;i<c.pin.length;i++){
@@ -706,18 +782,19 @@ async function runSequence(){
 
     /* PIN-Kontrolle */
     markStep(s++);
-    setLcd('1 8 0','P','nach korrekter PIN: Momentanleistung P',true);
-    const ok=await ask('Zeigt das Display jetzt "P"?',[
-      {label:'Ja, P steht da',value:true,primary:true},
+    if(m===METERS.e220) setLcd('1 8 0','P','nach korrekter PIN: Momentanleistung P',true);
+    else setLcd('1 8 0','- - -','nach korrekter PIN: Menü bzw. Momentanleistung',true);
+    const ok=await ask(m.pinOk,[
+      {label:m.pinOkYes,value:true,primary:true},
       {label:'Nein',value:false}
-    ]);
+    ],m.pinOkSub?{sub:'Nimm das Handy kurz weg und schau auf das Display. '+m.pinOkSub}:{});
     if(!ok){
       setRun('PIN nicht angenommen','Der Zähler ist auf die Standardanzeige zurückgefallen. Ablauf neu starten — ggf. Impulslänge oder Ziffernpause anpassen.');
       say('PIN nicht angenommen.');
       cleanup(); return;
     }
 
-    if(c.model!=='e220'||(!c.inf&&!c.pinOff)){
+    if(!m.menu||(!c.inf&&!c.pinOff)){
       markStep(s++); finish(); return;
     }
 
@@ -820,26 +897,32 @@ function cleanup(){
 function printPlan(){
   const c=cfg();
   const L=[];
-  L.push('ZÄHLER: '+(c.model==='e220'?'Landis+Gyr E220 / E230 / E320':'generisch'));
+  const m=M();
+  L.push('ZÄHLER: '+m.name);
   L.push('kurzer Impuls < 2 s   ·   langer Impuls > 5 s   ·   Ziffer wird nach ~3 s übernommen');
+  L.push('Optische Taste: '+m.sensor);
   L.push('');
-  L.push(' 1.  1× kurz            → Displaytest, dann PIN-Eingabe');
+  L.push(m.open===1
+    ? ' 1.  1× kurz            → Displaytest, dann PIN-Eingabe'
+    : ' 1.  2× kurz            → Displaytest übersprungen, PIN-Eingabe (erste Stelle blinkt)');
   c.pin.split('').forEach((d,i)=>{
     L.push('     Stelle '+(i+1)+': '+(d==='0'?'nicht blinken'.padEnd(14):(d+'× kurz').padEnd(14))+' → 3 s warten');
   });
-  L.push('     Display zeigt jetzt: P  (Momentanleistung)');
-  if(c.model==='e220'){
+  L.push(m===METERS.e220
+    ? '     Display zeigt jetzt: P  (Momentanleistung)'
+    : '     PIN angenommen? Bei falscher PIN fällt er auf die rollierende Anzeige zurück.');
+  if(m.menu){
     const tgt=c.inf?'InF':'PIn';
     const nn=stepsTo(tgt);
     const lp=pathLabels().slice(0,nn);
     const gelernt=loadLearned();
     L.push('');
-    L.push(' 2.  '+nn+'× je 1 kurzer Impuls: P → '+lp.join(' → '));
+    L.push(' 2.  '+nn+'× je 1 kurzer Impuls: '+lp.join(' → '));
     L.push('     '+(gelernt
       ? 'Reihenfolge am Gerät gelernt am '+new Date(gelernt.date).toLocaleDateString('de-DE')+'.'
-      : 'Reihenfolge laut Handbuch-Diagramm — NICHT verifiziert. Zähl lieber mit.'));
-    if(lp.indexOf('HIS')>=0)
-      L.push('     ACHTUNG bei HIS: langer Impuls löscht die historischen Werte.');
+      : 'Schrittzahl '+m.source+' — NICHT verifiziert. Zähl lieber mit.'));
+    if(lp.indexOf('HIS')>=0||lp.indexOf('?')>=0)
+      L.push('     ACHTUNG bei HIS / Registern: langer Impuls löscht dort Werte.');
     if(c.inf){
       L.push('');
       L.push(' 3.  bei "InF":  zeigt es oFF → 1× lang (>5 s) = erweiterter Datensatz an');
@@ -869,12 +952,23 @@ $('source').addEventListener('change',()=>{
     : 'Du bekommst die fertige Blinkfolge als Text, zum Abarbeiten mit einer echten Taschenlampe.';
 });
 $('diagBtn').addEventListener('click',runDiagnose);
-$('learn').checked=!loadLearned();
-renderLearnState();
-$('model').addEventListener('change',()=>{
-  const gen=$('model').value==='generic';
+function applyModel(){
+  const m=M(), gen=!m.menu;
   $('tasksCard').style.opacity=gen?.45:1;
   $('tInf').disabled=$('tPin').disabled=$('learn').disabled=gen;
+  $('modelHint').textContent=m.hint;
+  $('modelHint').style.display=m.hint?'block':'none';
+  $('dangerNote').innerHTML=m.danger;
+  $('dangerNote').style.display=m.danger?'block':'none';
+  $('learn').checked=!loadLearned();
+  renderLearnState();
+}
+// Gewähltes Modell merken — reine Bequemlichkeit, die PIN bleibt außen vor.
+try{ const mv=localStorage.getItem('zb.modell.v1'); if(mv&&METERS[mv]) $('model').value=mv; }catch(e){}
+applyModel();
+$('model').addEventListener('change',()=>{
+  try{ localStorage.setItem('zb.modell.v1',$('model').value); }catch(e){}
+  applyModel();
 });
 $('start').addEventListener('click',()=>{
   const c=cfg();

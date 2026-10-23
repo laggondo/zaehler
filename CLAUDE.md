@@ -115,6 +115,42 @@ Firmwareparameter „Endnutzereinstellungen Stromausfall" wird vom
 Messstellenbetreiber gesetzt und ist nicht änderbar. Die Kurzanleitung sagt,
 nach einem Spannungsausfall sei die Eingabe grundsätzlich zu wiederholen.
 
+## Logarex LK13BE / LK11BE (zweites Zählerprofil)
+
+Konkretes Gerät: LK13BE606739, Zweirichtungszähler, Baujahr 2022,
+Bayernwerk Netz. Alles Modellspezifische steht in der Konstanten `METERS`
+(Profile `e220`, `lk13be2`, `lk13be1`, `generic`); der Lernpfad liegt je
+Profil unter eigenem Schlüssel (`zb.menupfad.lk13be2.v1` usw., der E220
+behält `zb.menupfad.v1`). Das gewählte Modell merkt sich `zb.modell.v1`.
+
+Recherche-Stand 23.10.2026 — die Hersteller-PDFs waren aus der
+Entwicklungsumgebung nicht abrufbar, nur über Suchmaschinen-Auszüge:
+
+| Größe | Wert | Quelle |
+|---|---|---|
+| optische Taste | rundes Feld links neben dem Display, Taschenlampen-Symbol — dort sitzt auch der Lesekopf | Foto des Geräts |
+| Mindesthelligkeit | 400 Lux | Logarex-Anleitungen |
+| Öffnen | 1× kurz = Displaytest (5 s), dann PIN; 2× kurz = sofort PIN | Anleitung LK13BE606739 (Stadtwerke Werdau/Olbernhau) |
+| PIN-Eingabe | erste Stelle blinkt, je kurzer Impuls +1, Übernahme nach ~3 s | Anleitungen LK13BE8030x9/606xxx |
+| langer Impuls | > 5 s, schaltet `Inf` bzw. `Pin` zwischen on/OFF | Logarex-Anleitungen |
+| Schritte nach PIN bis `InF` | Zweirichtung 13× kurz, Einrichtung 8× kurz, danach 1× kurz zu `PIn` | IOmeter-Hilfe „Logarex: Informationen zur Pin Eingabe" |
+| gefährliche Positionen | `HIS CLr` (langer Impuls löscht Historie), Verbrauchsregister | Anleitung LK11/LK13 Version 8 |
+
+Unsicherheiten, bitte nicht wegoptimieren:
+
+1. Die **Displaytexte** der 12 bzw. 7 Zwischenschritte sind unbekannt
+   (im Pfad als `?`). Nur die Anzahl stammt aus einer Drittquelle (IOmeter),
+   nicht von Logarex. Vermutlich P/E/1d/7d/30d/365d je Energierichtung plus
+   HIS/CLr — das ist geraten. Deshalb ist der Lernmodus beim ersten Lauf an.
+2. Ob die Zählung bei dem Bildschirm direkt nach der PIN beginnt, ist nicht
+   belegt. Die Abfrage vor `InF` fängt eine Verschiebung ab.
+3. Nach dem zweiten Öffnungsimpuls wartet die App nur die Menüschritt-Pause,
+   nicht die Ziffernpause — sonst könnte die erste PIN-Stelle schon als 0
+   übernommen werden. Am Gerät nicht verifiziert.
+4. IOmeter empfiehlt bei LK11/LK13 die mechanische Taste statt Taschenlampe,
+   falls vorhanden. Dann reicht der Ablaufplan.
+5. Rückfallzeit (120 s beim E220) für Logarex nicht recherchiert.
+
 ## Lichtquelle: der harte Teil
 
 Die App kann auf drei Wegen blinken:
@@ -180,3 +216,5 @@ gehostet werden.
 - [ ] Gegenprobe am Zendure-Lesekopf: Erfolgskontrolle ist nicht das Display,
       sondern eine Wattzahl aus `1-0:16.7.0`.
 - [ ] Die gemessene Menüreihenfolge hier eintragen (siehe „Stand" oben).
+- [ ] Logarex LK13BE606739: Lernmodus am Gerät laufen lassen, Displaytexte
+      und Schrittzahl im Abschnitt „Logarex" eintragen.
