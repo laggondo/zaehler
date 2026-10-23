@@ -126,6 +126,8 @@ button[disabled]{opacity:.4;cursor:not-allowed}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .btnrow.cols4{grid-template-columns:repeat(4,1fr);gap:8px}
 .btnrow.cols4 button{padding:14px 2px;font-size:15px}
+.btnrow.cols3{grid-template-columns:repeat(3,1fr);gap:8px}
+.btnrow.cols3 button{padding:12px 2px;font-size:14px}
 .btnrow button.wide{grid-column:1/-1}
 button.mini{width:auto;padding:6px 10px;font-size:12px;margin-top:8px}
 
@@ -382,18 +384,31 @@ const cfg=()=>({
 });
 
 /* ---------------- Zählerprofile ----------------
-   Alles, was sich zwischen den Modellen unterscheidet. Die Pfade sind
-   Annahmen aus Handbüchern bzw. Anleitungen Dritter, nicht am Gerät
-   verifiziert — '?' heißt: Anzahl bekannt, Displaytext nicht. */
-const LOGAREX_LABELS=['P','E','1d','7d','30d','365d','HIS','CLr','InF','PIn'];
-const LOGAREX_HINT='Optische Taste: das runde Feld links neben dem Display, unter dem das '+
-  'Taschenlampen-Symbol steht — ein dort aufgesetzter IR-Lesekopf muss vorher ab. '+
-  'Öffnen per 2 kurzen Impulsen (der erste startet den Displaytest, der zweite springt direkt in die PIN-Eingabe). '+
-  'Die Schrittzahl bis InF stammt aus der IOmeter-Anleitung, nicht von Logarex selbst. '+
-  'Der LK13BE606739 hat laut Anleitung zusätzlich eine mechanische Bedientaste rechts neben dem Typenschild — damit geht alles auch per Daumen, dann den Ablaufplan nehmen.';
-const LOGAREX_DANGER='Auf dem Weg zu <strong>InF</strong> liegen die Verbrauchsregister und '+
-  '<strong>HIS CLr</strong>. Ein langer Impuls an falscher Stelle löscht dort Werte. '+
+   Alles, was sich zwischen den Modellen unterscheidet. Die Pfade stammen
+   aus Handbüchern, nicht vom Gerät — der Lernmodus misst sie nach.
+   Logarex-Labels: "1.8.0 1d" = obere Zeile OBIS-Code, untere Zeile INFO-Kürzel. */
+const LK13_PATH2=['1.8.0 E','2.8.0 E','E CLr',
+  '1.8.0 1d','1.8.0 7d','1.8.0 30d','1.8.0 365d',
+  '2.8.0 1d','2.8.0 7d','2.8.0 30d','2.8.0 365d',
+  'HIS CLr','InF','PIn'];
+// Einrichtung: im Handbuch nicht abgebildet — aus dem Zweirichtungs-Diagramm
+// ohne die 2.8.0-Register abgeleitet; ergibt die 8 Schritte, die IOmeter nennt.
+const LK13_PATH1=['1.8.0 E','E CLr','1.8.0 1d','1.8.0 7d','1.8.0 30d','1.8.0 365d','HIS CLr','InF','PIn'];
+const LOGAREX_HINT='Optische Taste: das runde Feld links unter dem Display, unter dem das '+
+  'Taschenlampen-Symbol steht (Bedientaste und Datenschnittstelle in einem) — ein dort aufgesetzter IR-Lesekopf muss vorher ab. '+
+  'Öffnen per 2 kurzen Impulsen: der erste startet den 5-s-Displaytest, der zweite bricht ihn ab und springt in die PIN-Eingabe. '+
+  'Menüfolge laut Logarex-Gebrauchsanweisung LK13BE606xxx (Version 1, 2022-01-11).';
+const LOGAREX_DANGER='Auf dem Weg zu <strong>InF</strong> liegen <strong>E CLr</strong> und <strong>HIS CLr</strong>. '+
+  'Dort führt ein langer Impuls zur Abfrage „CLr on“, ein zweiter langer Impuls löscht den Verbrauchszähler E bzw. die Historie. '+
+  'Ein langer Impuls auf 1d…365d öffnet nur die Index-Ansicht, bringt aber die Zählung durcheinander. '+
   'Der Ablauf hält deshalb vor jedem Umschalten an und fragt, was auf dem Display steht.';
+/* Menülabel → [obere Zeile, untere Zeile] für den Segment-Nachbau. */
+function lcdFor(l){
+  const m=/^([12])\.8\.0 (.+)$/.exec(l);
+  if(m) return [m[1]+' 8 0',m[2]];
+  if(l==='HIS CLr') return ['HIS','CLr'];
+  return ['1 8 0',l];
+}
 const METERS={
   e220:{
     name:'Landis+Gyr E220 / E230 / E320', menu:true,
@@ -412,11 +427,11 @@ const METERS={
     name:'Logarex LK13BE / LK11BE (Zweirichtung)', menu:true,
     key:'zb.menupfad.lk13be2.v1',
     open:2, openWait:'menu',
-    labels:LOGAREX_LABELS,
-    path:Array(12).fill('?').concat(['InF','PIn']),
-    source:'laut IOmeter-Anleitung für Zweirichtungszähler (13× kurz)',
-    sensor:'das runde Feld links neben dem Display (Taschenlampen-Symbol)',
-    pinOk:'Hat der Zähler die PIN angenommen?', pinOkYes:'Ja, Menü bzw. P erscheint',
+    labels:['P'].concat(LK13_PATH2), cols:3,
+    path:LK13_PATH2,
+    source:'laut Ablaufdiagramm der Logarex-Gebrauchsanweisung (deckt sich mit IOmeter: 13× kurz)',
+    sensor:'das runde Feld links unter dem Display (Taschenlampen-Symbol)',
+    pinOk:'Zeigt das Display jetzt "P" mit einer Wattzahl?', pinOkYes:'Ja, P steht da',
     pinOkSub:'Bei falscher PIN fällt er sofort auf die rollierende Anzeige zurück.',
     hint:LOGAREX_HINT, danger:LOGAREX_DANGER
   },
@@ -424,11 +439,11 @@ const METERS={
     name:'Logarex LK13BE / LK11BE (Einrichtung)', menu:true,
     key:'zb.menupfad.lk13be1.v1',
     open:2, openWait:'menu',
-    labels:LOGAREX_LABELS,
-    path:Array(7).fill('?').concat(['InF','PIn']),
-    source:'laut IOmeter-Anleitung für Einrichtungszähler (8× kurz)',
-    sensor:'das runde Feld links neben dem Display (Taschenlampen-Symbol)',
-    pinOk:'Hat der Zähler die PIN angenommen?', pinOkYes:'Ja, Menü bzw. P erscheint',
+    labels:['P'].concat(LK13_PATH1), cols:3,
+    path:LK13_PATH1,
+    source:'abgeleitet aus dem Zweirichtungs-Diagramm von Logarex (deckt sich mit IOmeter: 8× kurz)',
+    sensor:'das runde Feld links unter dem Display (Taschenlampen-Symbol)',
+    pinOk:'Zeigt das Display jetzt "P" mit einer Wattzahl?', pinOkYes:'Ja, P steht da',
     pinOkSub:'Bei falscher PIN fällt er sofort auf die rollierende Anzeige zurück.',
     hint:LOGAREX_HINT, danger:LOGAREX_DANGER
   },
@@ -475,8 +490,8 @@ function renderLearnState(){
     return;
   }
   const d=new Date(l.date);
-  let t='Am Gerät gelernt ('+d.toLocaleDateString('de-DE')+'): <b>'+(M()===METERS.e220?'P':'PIN')+' → '+l.path.join(' → ')+'</b>';
-  if(l.path.indexOf('InF')>=0) t+='<br>InF liegt <b>'+stepsTo('InF')+' kurze Impulse</b> hinter der PIN-Eingabe.';
+  let t='Am Gerät gelernt ('+d.toLocaleDateString('de-DE')+'): <b>P → '+l.path.join(' → ')+'</b>';
+  if(l.path.indexOf('InF')>=0) t+='<br>InF liegt <b>'+stepsTo('InF')+' kurze Impulse</b> hinter P.';
   el.innerHTML=t+'<br><button class="ghost mini" id="forget">Gelerntes vergessen</button>';
   $('forget').onclick=()=>{ clearLearned(); $('learn').checked=true; renderLearnState(); };
 }
@@ -647,7 +662,7 @@ function ask(question,options,opts){
     beep(660,150); setTimeout(()=>beep(660,150),220); say(opts.spoken||question);
     const box=$('confirmBox'), btns=$('confirmBtns');
     btns.innerHTML=''; box.style.display='block';
-    btns.className='btnrow'+(opts.cols===4?' cols4':'');
+    btns.className='btnrow'+(opts.cols===4?' cols4':opts.cols===3?' cols3':'');
     let iv=null;
     const close=fn=>{
       if(iv) clearInterval(iv);
@@ -690,8 +705,8 @@ async function learnMenu(c,target){
     const opts=M().labels.map(l=>({label:l,value:l}));
     opts.push({label:'etwas anderes',value:'?',wide:true});
     opts.push({label:'Standardanzeige — Zählerstand',value:'fallback',wide:true});
-    const ans=await ask('Schritt '+n+' — was steht oben im Display?',opts,{
-      cols:4,
+    const ans=await ask('Schritt '+n+' — was zeigt das Display?',opts,{
+      cols:M().cols||4,
       spoken:'Schritt '+n+'. Was steht da?',
       sub:'Handy hochnehmen, ablesen, antippen. Nicht raten — genau dafür ist der Modus da.'
     });
@@ -727,7 +742,7 @@ async function runSequence(){
   const openTxt=m.open===1?'1 kurzer Impuls':m.open+' kurze Impulse';
   const plan=['Vorlauf — Handy auflegen','Menü öffnen ('+openTxt+')'];
   c.pin.split('').forEach((d,i)=>plan.push('PIN-Stelle '+(i+1)+': '+d+' → '+(d==='0'?'kein Impuls, nur warten':d+'× kurz')));
-  plan.push(m===METERS.e220?'PIN prüfen — Display zeigt P':'PIN prüfen');
+  plan.push('PIN prüfen — Display zeigt P');
   if(m.menu&&(c.inf||c.pinOff)){
     plan.push(c.learn
       ? 'Lernmodus: Menü Schritt für Schritt bis '+target
@@ -782,8 +797,7 @@ async function runSequence(){
 
     /* PIN-Kontrolle */
     markStep(s++);
-    if(m===METERS.e220) setLcd('1 8 0','P','nach korrekter PIN: Momentanleistung P',true);
-    else setLcd('1 8 0','- - -','nach korrekter PIN: Menü bzw. Momentanleistung',true);
+    setLcd('1 8 0','P','nach korrekter PIN: Momentanleistung P',true);
     const ok=await ask(m.pinOk,[
       {label:m.pinOkYes,value:true,primary:true},
       {label:'Nein',value:false}
@@ -811,7 +825,8 @@ async function runSequence(){
       for(let i=0;i<nSteps;i++){
         const l=labels[i]||'?';
         setRun('Weiter im Menü','Schritt '+(i+1)+' von '+nSteps+' → '+l);
-        setLcd('1 8 0',l==='?'?'- - -':l,'Menüpunkt '+l,true);
+        const lc=lcdFor(l);
+        setLcd(lc[0],l==='?'?'- - -':lc[1],'Menüpunkt '+l,true);
         await pulse(c.short); await gate(); await sleep(c.menu);
       }
     }
@@ -908,9 +923,7 @@ function printPlan(){
   c.pin.split('').forEach((d,i)=>{
     L.push('     Stelle '+(i+1)+': '+(d==='0'?'nicht blinken'.padEnd(14):(d+'× kurz').padEnd(14))+' → 3 s warten');
   });
-  L.push(m===METERS.e220
-    ? '     Display zeigt jetzt: P  (Momentanleistung)'
-    : '     PIN angenommen? Bei falscher PIN fällt er auf die rollierende Anzeige zurück.');
+  L.push('     Display zeigt jetzt: P  (Momentanleistung)');
   if(m.menu){
     const tgt=c.inf?'InF':'PIn';
     const nn=stepsTo(tgt);
@@ -921,7 +934,9 @@ function printPlan(){
     L.push('     '+(gelernt
       ? 'Reihenfolge am Gerät gelernt am '+new Date(gelernt.date).toLocaleDateString('de-DE')+'.'
       : 'Schrittzahl '+m.source+' — NICHT verifiziert. Zähl lieber mit.'));
-    if(lp.indexOf('HIS')>=0||lp.indexOf('?')>=0)
+    if(lp.some(l=>/CLr/.test(l)))
+      L.push('     ACHTUNG bei E CLr / HIS CLr: langer Impuls fragt "CLr on", ein zweiter löscht.');
+    else if(lp.indexOf('HIS')>=0||lp.indexOf('?')>=0)
       L.push('     ACHTUNG bei HIS / Registern: langer Impuls löscht dort Werte.');
     if(c.inf){
       L.push('');

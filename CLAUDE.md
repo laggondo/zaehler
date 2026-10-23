@@ -124,37 +124,53 @@ Die Nulleinspeisungs-Geschichte oben gilt dort nicht. Alles Modellspezifische st
 Profil unter eigenem Schlüssel (`zb.menupfad.lk13be2.v1` usw., der E220
 behält `zb.menupfad.v1`). Das gewählte Modell merkt sich `zb.modell.v1`.
 
-Recherche-Stand 23.10.2026 — die Hersteller-PDFs waren aus der
-Entwicklungsumgebung nicht abrufbar, nur über Suchmaschinen-Auszüge:
+Quellen: Logarex-Gebrauchsanweisung „LK13BE606xxx", Version 1, 2022-01-11
+(OB-Netz, liegt vor, Ablaufdiagramm S. 7–9), Kurzanleitung LK13BE606739
+(Stadtwerke Werdau), IOmeter-Hilfe „Logarex: Informationen zur Pin Eingabe".
 
 | Größe | Wert | Quelle |
 |---|---|---|
-| optische Taste | rundes Feld links unter dem Display, Taschenlampen-Symbol — „optische Bedientaste des Displays und Datenschnittstelle“ in einem | Anleitung LK13BE606739 (Werdau), Foto |
-| mechanische Taste | vorhanden, rechts neben dem Typenschild; gleiche Bedienung wie die optische | Anleitung LK13BE606739 (Werdau) |
-| Mindesthelligkeit | 400 Lux | Logarex-Anleitungen |
-| Öffnen | 1× kurz = Displaytest (5 s), dann PIN; 2× kurz = sofort PIN | Anleitung LK13BE606739 (Stadtwerke Werdau/Olbernhau) |
-| PIN-Eingabe | erste Stelle blinkt, je kurzer Impuls +1, Übernahme nach ~3 s | Anleitungen LK13BE8030x9/606xxx |
-| langer Impuls | > 5 s, schaltet `Inf` bzw. `Pin` zwischen on/OFF | Logarex-Anleitungen |
-| Schritte nach PIN bis `InF` | Zweirichtung 13× kurz, Einrichtung 8× kurz, danach 1× kurz zu `PIn` | IOmeter-Hilfe „Logarex: Informationen zur Pin Eingabe" |
-| gefährliche Positionen | `HIS CLr` (langer Impuls löscht Historie), Verbrauchsregister | Anleitung LK11/LK13 Version 8 |
+| optische Taste | rundes Feld links unter dem Display, Taschenlampen-Symbol — Bedientaste und Datenschnittstelle in einem | Werdau, Foto |
+| mechanische Taste | vorhanden, rechts; gleiche Bedienung. Der Nutzer will ausdrücklich optisch | Werdau |
+| Öffnen | kurzer Impuls in der rollierenden Anzeige → LCD-Test 5 s; ein kurzer Impuls währenddessen bricht ihn ab → PIN-Eingabe. Die App sendet 2× kurz | Gebrauchsanweisung S. 7 |
+| PIN-Eingabe | Anzeige `Pin 0---`, erste Stelle blinkt; je kurzer Impuls +1 (…9→0→1); ~3 s warten → nächste Stelle | S. 7 |
+| PIN falsch | sofort zurück zur rollierenden Anzeige; sonst Sprung zu `P` (Wattzahl) | S. 7 |
+| PIN-Schutz nach Stromausfall | Einstellung bleibt erhalten | S. 9 |
+| langer Impuls | Dauer nicht angegeben; App nimmt wie beim E220 > 5 s | — |
+| Rückfallzeit ohne Impuls | nicht angegeben; App nimmt 120 s an | — |
+
+Menüreihenfolge Zweirichtungszähler ab `P`, je 1 kurzer Impuls
+(obere Zeile OBIS, untere Zeile INFO-Kürzel):
+
+```
+P → 1.8.0 E → 2.8.0 E → E CLr → 1.8.0 1d → 1.8.0 7d → 1.8.0 30d → 1.8.0 365d
+  → 2.8.0 1d → 2.8.0 7d → 2.8.0 30d → 2.8.0 365d → HiS CLr → InF → Pin → (rollierend)
+```
+
+Das sind **13 kurze Impulse von P bis InF** — deckt sich mit IOmeter. Bei
+`Inf` und `Pin` zeigt der erste Bildschirm den Ist-Zustand, ein langer Impuls
+kippt ihn, ein kurzer geht weiter. Ein kurzer Impuls bei `Pin` verlässt das Menü.
+
+Einrichtungszähler: im Handbuch nicht abgebildet. Die App leitet ab
+`P → 1.8.0 E → E CLr → 1d → 7d → 30d → 365d → HiS CLr → InF` (8 Schritte,
+passt zu IOmeter) — das ist eine Ableitung, keine Quelle.
+
+Gefährliche Stellen, weniger brutal als beim E220:
+
+- `E CLr` / `HiS CLr`: langer Impuls → Abfrage `CLr on`; **zweiter** langer
+  Impuls löscht den Verbrauchszähler E bzw. die Historie.
+- `1d…365d`: langer Impuls öffnet die Index-Ansicht (nicht destruktiv),
+  verschiebt aber die Zählung.
 
 Unsicherheiten, bitte nicht wegoptimieren:
 
-1. Die **Displaytexte** der 12 bzw. 7 Zwischenschritte sind unbekannt
-   (im Pfad als `?`). Nur die Anzahl stammt aus einer Drittquelle (IOmeter),
-   nicht von Logarex. Vermutlich P/E/1d/7d/30d/365d je Energierichtung plus
-   HIS/CLr — das ist geraten. Deshalb ist der Lernmodus beim ersten Lauf an.
-2. Ob die Zählung bei dem Bildschirm direkt nach der PIN beginnt, ist nicht
-   belegt. Die Abfrage vor `InF` fängt eine Verschiebung ab.
-3. Nach dem zweiten Öffnungsimpuls wartet die App nur die Menüschritt-Pause,
-   nicht die Ziffernpause — sonst könnte die erste PIN-Stelle schon als 0
-   übernommen werden. Am Gerät nicht verifiziert.
-4. Der LK13BE606739 hat eine mechanische Bedientaste (Werdau-Anleitung,
-   Punkt 3); IOmeter empfiehlt sie statt der Taschenlampe. Dann reicht der
-   Ablaufplan. Die Werdau-Anleitung (2 Seiten, liegt vor) enthält **keine**
-   Menüreihenfolge — dafür die OB-Netz-Gebrauchsanweisung LK13BE606xxx
-   (Version 1, 2022-01-11) besorgen.
-5. Rückfallzeit (120 s beim E220) für Logarex nicht recherchiert.
+1. Die Reihenfolge stammt aus dem Handbuch, nicht vom Gerät. Firmware­parameter
+   des Messstellenbetreibers könnten Punkte ausblenden — deshalb ist der
+   Lernmodus beim ersten Lauf an, und die Abfrage vor `InF` bleibt.
+2. Nach dem zweiten Öffnungsimpuls wartet die App nur die Menüschritt-Pause,
+   nicht die Ziffernpause — sonst würde die erste PIN-Stelle schon als 0
+   übernommen. Am Gerät nicht verifiziert.
+3. Dauer des langen Impulses und Rückfallzeit sind für Logarex nicht belegt.
 
 ## Lichtquelle: der harte Teil
 
