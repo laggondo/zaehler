@@ -118,7 +118,8 @@ nach einem Spannungsausfall sei die Eingabe grundsätzlich zu wiederholen.
 ## Logarex LK13BE / LK11BE (zweites Zählerprofil)
 
 Konkretes Gerät: LK13BE606739, Zweirichtungszähler, Baujahr 2022,
-Bayernwerk Netz. Alles Modellspezifische steht in der Konstanten `METERS`
+Bayernwerk Netz — ein anderer Standort als der E220, ohne Zendure-Lesekopf.
+Die Nulleinspeisungs-Geschichte oben gilt dort nicht. Alles Modellspezifische steht in der Konstanten `METERS`
 (Profile `e220`, `lk13be2`, `lk13be1`, `generic`); der Lernpfad liegt je
 Profil unter eigenem Schlüssel (`zb.menupfad.lk13be2.v1` usw., der E220
 behält `zb.menupfad.v1`). Das gewählte Modell merkt sich `zb.modell.v1`.
